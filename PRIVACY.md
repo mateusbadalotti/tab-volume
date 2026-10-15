@@ -18,6 +18,8 @@ To display tab icons, your browser may request the favicon URLs supplied by the 
 
 Tab Volume has no developer-operated server, analytics, advertising, or user accounts. It does not sell user data or send tab metadata or audio to third parties.
 
+Tab Volume uses tab information and audio only to provide its volume controls. Its use of user data complies with the Chrome Web Store User Data Policy, including the Limited Use requirements. User data is not used for advertising, profiling, credit decisions, or unrelated purposes, and the developer does not have access to read or listen to it.
+
 ## Your controls
 
 Audio control starts only after you invoke the extension on a tab and change its volume. Resetting a tab to 100% stops its capture. You can uninstall the extension to remove its local theme preference and access to your tabs.
