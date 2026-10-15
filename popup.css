@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light;
+  --paper: #f8fafd;
+  --canvas: #ffffff;
+  --ink: #1f1f1f;
+  --secondary: #444746;
+  --muted: #5f6368;
+  --line: #e1e3e1;
+  --accent: #0b57d0;
+  --accent-container: #d3e3fd;
+  --hover: #e8eaed;
+  --live: var(--accent);
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 13px var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+html, body { width: 364px; margin: 0; }
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+::selection { background: var(--line); color: var(--ink); }
+button, input { font: inherit; }
+button { color: inherit; cursor: pointer; }
+button:disabled, input:disabled { cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+header { padding: 20px 20px 0; }
+.heading, .brand, .header-actions, .tab-heading, .controls, .list-heading { display: flex; align-items: center; }
+.heading { justify-content: space-between; gap: 12px; }
+.brand { gap: 10px; }
+.header-actions { gap: 8px; }
+.theme-toggle { position: relative; display: flex; align-items: center; justify-content: space-around; flex: none; width: 56px; height: 28px; padding: 0; border: 0; border-radius: 16px; background: var(--hover); color: var(--secondary); }
+.theme-toggle::before { content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: var(--canvas); }
+.theme-toggle[aria-checked="true"]::before { transform: translateX(28px); }
+.theme-toggle svg { position: relative; width: 15px; height: 15px; }
+.theme-toggle[aria-checked="false"] .sun, .theme-toggle[aria-checked="true"] .moon { color: var(--accent); }
+h1 { margin: 0; font: 500 16px var(--sans); white-space: nowrap; }
+.mark { display: flex; align-items: center; justify-content: center; gap: 3px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-container); }
+.mark i { width: 2px; height: 8px; border-radius: 2px; background: var(--accent); }
+.mark i:nth-child(2) { height: 16px; }
+.mark i:nth-child(3) { height: 12px; }
+.playing { flex: none; padding: 4px 8px; border-radius: 16px; background: var(--accent-container); font: 11px var(--sans); color: var(--live); }
+.playing[data-active="true"]::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin: 0 5px 2px 0; }
+.list-heading { justify-content: space-between; color: var(--muted); font: 11px var(--sans); padding: 18px 0 12px; }
+main { max-height: 406px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding: 0 8px 8px; }
+.tab { padding: 14px 12px 12px; margin-bottom: 8px; border-radius: 12px; background: var(--canvas); }
+.tab:nth-last-child(1 of :not([hidden])) { margin-bottom: 0; }
+.tab-heading { gap: 8px; }
+.tab-link { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; padding: 0; text-align: left; border: 0; background: transparent; }
+.tab-link:hover .tab-title { color: var(--accent); }
+.favicon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--paper); color: var(--secondary); font: 500 12px var(--sans); }
+.favicon img { width: 18px; height: 18px; object-fit: contain; }
+.tab-info { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+.tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12px var(--sans); }
+.tab-site { color: var(--muted); font: 10px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status { color: var(--muted); font: 10px var(--sans); flex: none; }
+.tab[data-audible="true"] .status { color: var(--live); }
+.volume-value { flex: none; width: 48px; padding: 5px 0; border: 0; border-radius: 16px; background: transparent; text-align: right; font: 500 13px var(--sans); font-variant-numeric: tabular-nums; }
+.volume-value:hover { color: var(--accent); }
+.tab[data-boost="true"] .volume-value { color: var(--accent); }
+.controls { gap: 12px; margin-top: 12px; }
+.icon-button { display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; padding: 7px; width: 32px; height: 32px; color: var(--secondary); }
+.icon-button:hover { background: var(--hover); color: var(--accent); }
+.icon-button svg { width: 18px; height: 18px; }
+.sound-cross { display: none; }
+.tab[data-muted="true"] .sound-cross { display: initial; }
+.tab[data-muted="true"] .sound-waves { display: none; }
+.tab[data-muted="true"] .volume-value { color: var(--muted); }
+.slider-track { position: relative; flex: 1; height: 32px; display: flex; align-items: center; }
+.volume-slider { appearance: none; width: 100%; height: 24px; margin: 0; background: transparent; cursor: pointer; }
+.volume-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--line) var(--fill, 50%)); }
+.volume-slider::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border: 0; border-radius: 50%; background: var(--accent); }
+.original-mark { position: absolute; left: 50%; top: 26px; width: 1px; height: 3px; background: var(--muted); pointer-events: none; }
+.limit { color: var(--muted); font: 10px var(--sans); }
+.tab[data-muted="true"] .volume-slider { opacity: 0.5; }
+.tab[data-disabled="true"] .controls { opacity: 0.4; }
+.tab-note { margin: 12px 0 0 36px; color: var(--secondary); font-size: 11px; line-height: 1.5; }
+.tab-note[data-error="true"], .error { color: #a03535; }
+.empty { margin: 0; padding: 32px 20px; color: var(--secondary); text-align: center; font-size: 12px; }
+.error { margin: 0; padding: 16px 20px; font-size: 12px; line-height: 1.5; }
+:root[data-theme="dark"] { color-scheme: dark; --paper: #141517; --canvas: #1c1d20; --ink: #e8eaed; --secondary: #c4c7c5; --muted: #bdc1c6; --line: #34363a; --accent: #a8c7fa; --accent-container: #25334a; --hover: #292b2f; }
+:root[data-theme="dark"] .tab-note[data-error="true"], :root[data-theme="dark"] .error { color: #ffaaaa; }
