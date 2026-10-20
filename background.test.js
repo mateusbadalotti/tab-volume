@@ -6,10 +6,12 @@ const vm = require("node:vm");
 test("Per-tab volume, queued adjustments, permissions and reset", async () => {
   let listener;
   let removed;
+  let updated;
   let offscreen = false;
   let captures = 0;
   let creations = 0;
   const volumes = {};
+  const muted = {};
   const tabs = new Map([
     [1, { id: 1, url: "https://example.com", mutedInfo: { muted: false } }],
     [2, { id: 2, url: "https://example.org", mutedInfo: { muted: false } }],
@@ -25,6 +27,7 @@ test("Per-tab volume, queued adjustments, permissions and reset", async () => {
       sendMessage: async message => {
         if (message.type === "state") return { volumes: { ...volumes } };
         if (message.type === "stop") delete volumes[message.tabId];
+        else if (message.type === "mute") muted[message.tabId] = message.muted;
         else volumes[message.tabId] = message.volume;
         return {};
       }
@@ -38,7 +41,11 @@ test("Per-tab volume, queued adjustments, permissions and reset", async () => {
     tabs: {
       get: async id => { if (!tabs.has(id)) throw new Error("Tab closed"); return tabs.get(id); },
       query: async () => [...tabs.values()],
-      update: async (id, { muted }) => { tabs.get(id).mutedInfo = { muted }; },
+      update: async (id, { muted }) => {
+        tabs.get(id).mutedInfo = { muted };
+        updated(id, { mutedInfo: { muted } });
+      },
+      onUpdated: { addListener: callback => { updated = callback; } },
       onRemoved: { addListener: callback => { removed = callback; } }
     }
   };
@@ -52,18 +59,32 @@ test("Per-tab volume, queued adjustments, permissions and reset", async () => {
   assert.equal(captures, 1);
   assert.equal(creations, 1);
   await send({ type: "mute", tabId: 1, muted: true });
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(tabs.get(1).mutedInfo.muted, true);
+  assert.equal(muted[1], true);
   assert.equal(volumes[1], 200);
+  tabs.get(1).mutedInfo = { muted: false };
+  updated(1, { mutedInfo: { muted: false } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(muted[1], false);
+  assert.equal(volumes[1], 200);
+  tabs.get(1).mutedInfo = { muted: true };
+  updated(1, { mutedInfo: { muted: true } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(muted[1], true);
   await send({ type: "volume", tabId: 1, volume: 30 });
   assert.equal(tabs.get(1).mutedInfo.muted, false);
+  assert.equal(muted[1], false);
   await send({ type: "volume", tabId: 1, volume: 100 });
   assert.equal(volumes[1], undefined);
   assert.match((await send({ type: "volume", tabId: 2, volume: 200 })).error, /click the extension/);
   assert.match((await send({ type: "volume", tabId: 3, volume: 200 })).error, /unavailable/);
   assert.match((await send({ type: "volume", tabId: 4, volume: 200 })).error, /load it/);
   for (const volume of [-1, 201, NaN, "200"]) assert.match((await send({ type: "volume", tabId: 1, volume })).error, /Invalid/);
+  tabs.get(1).mutedInfo = { muted: true };
   await send({ type: "volume", tabId: 1, volume: 0 });
   assert.equal(volumes[1], 0);
+  assert.equal(muted[1], true);
   removed(1);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(volumes[1], undefined);

@@ -110,15 +110,18 @@ function createRow(tab) {
 
 function updateVisibility() {
   let visible = 0;
-  for (const { row } of rows.values()) {
-    row.hidden = row.dataset.audible !== "true";
+  let playing = 0;
+  for (const { row, volume } of rows.values()) {
+    const audible = row.dataset.audible === "true";
+    row.hidden = !audible && row.dataset.muted !== "true" && volume === DEFAULT_VOLUME;
     if (!row.hidden) visible++;
+    if (audible) playing++;
   }
   document.getElementById("count").textContent = `${visible} ${visible === 1 ? "tab" : "tabs"}`;
   document.getElementById("empty").hidden = visible > 0;
   const indicator = document.getElementById("playing");
-  indicator.textContent = visible ? `${visible} playing` : "No audio";
-  indicator.dataset.active = String(visible > 0);
+  indicator.textContent = playing ? `${playing} playing` : "No audio";
+  indicator.dataset.active = String(playing > 0);
 }
 
 async function refresh() {

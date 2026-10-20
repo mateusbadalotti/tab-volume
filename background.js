@@ -50,9 +50,13 @@ async function setVolume(tabId, volume) {
       }
       throw new Error("Could not start audio control. Stop other captures of this tab and try again.");
     }
-    await sendAudioMessage({ type: "start", tabId, volume, streamId });
+    await sendAudioMessage({ type: "start", tabId, volume, streamId, muted: Boolean(tab.mutedInfo?.muted) });
   }
   if (volume > 0 && tab.mutedInfo?.muted) await chrome.tabs.update(tabId, { muted: false });
+  if (volume !== DEFAULT_VOLUME) {
+    const currentTab = await chrome.tabs.get(tabId);
+    await sendAudioMessage({ type: "mute", tabId, muted: Boolean(currentTab.mutedInfo?.muted) });
+  }
   return { volume };
 }
 
@@ -88,4 +92,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 
 chrome.tabs.onRemoved.addListener(tabId => {
   hasOffscreen().then(exists => exists && sendAudioMessage({ type: "stop", tabId })).catch(() => {});
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.mutedInfo) return;
+  hasOffscreen().then(exists => exists && sendAudioMessage({ type: "mute", tabId, muted: changeInfo.mutedInfo.muted })).catch(() => {});
 });

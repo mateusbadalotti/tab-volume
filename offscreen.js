@@ -15,7 +15,7 @@ function stopSession(tabId) {
 function updateSessionVolume(session, volume) {
   const now = session.context.currentTime;
   session.gain.gain.cancelScheduledValues(now);
-  session.gain.gain.setTargetAtTime(volume / DEFAULT_VOLUME, now, RAMP_SECONDS);
+  session.gain.gain.setTargetAtTime(session.muted ? 0 : volume / DEFAULT_VOLUME, now, RAMP_SECONDS);
   session.volume = volume;
 }
 
@@ -25,6 +25,14 @@ async function handleAudioMessage(message) {
   }
   if (message.type === "stop") {
     stopSession(message.tabId);
+    return {};
+  }
+  if (message.type === "mute") {
+    const session = sessions.get(message.tabId);
+    if (session) {
+      session.muted = message.muted;
+      updateSessionVolume(session, session.volume);
+    }
     return {};
   }
   if (message.type === "volume") {
@@ -45,12 +53,12 @@ async function handleAudioMessage(message) {
     context = new AudioContext();
     const source = context.createMediaStreamSource(stream);
     const gain = context.createGain();
-    gain.gain.value = message.volume / DEFAULT_VOLUME;
+    gain.gain.value = message.muted ? 0 : message.volume / DEFAULT_VOLUME;
     source.connect(gain);
     gain.connect(context.destination);
     await context.resume();
     stopSession(message.tabId);
-    sessions.set(message.tabId, { stream, context, source, gain, volume: message.volume });
+    sessions.set(message.tabId, { stream, context, source, gain, volume: message.volume, muted: message.muted });
     stream.getAudioTracks().forEach(track => track.addEventListener("ended", () => stopSession(message.tabId), { once: true }));
     return {};
   } catch {
