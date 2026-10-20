@@ -29,12 +29,26 @@ async function getVolumes() {
   return volumes;
 }
 
-async function setVolume(tabId, volume) {
+function volumeKey(tab) {
+  try {
+    if (!/^(https?|file):/.test(tab.url || "")) return;
+    return `volume:${JSON.stringify([tab.title || "", new URL(tab.url).origin])}`;
+  } catch { return; }
+}
+
+async function setVolume(tabId, volume, restoring = false) {
   const tab = await chrome.tabs.get(tabId);
   if (!/^(https?|file):/.test(tab.url || "")) throw new Error("Volume control is unavailable on this browser page.");
   if (tab.discarded) throw new Error("Open this tab to load it before adjusting its volume.");
   const volumes = await getVolumes();
   const isCaptured = volumes[tabId] !== undefined;
+  if (restoring && isCaptured) return { volume: volumes[tabId] };
+  if (restoring) {
+    const key = volumeKey(tab);
+    const stored = await chrome.storage.local.get(["rememberVolume", key]);
+    volume = stored[key];
+    if (stored.rememberVolume !== true || !Number.isFinite(volume) || volume < 0 || volume > MAX_VOLUME) return { volume: DEFAULT_VOLUME };
+  }
   if (volume !== DEFAULT_VOLUME) await ensureOffscreen();
   if (volume === DEFAULT_VOLUME) {
     if (isCaptured) await sendAudioMessage({ type: "stop", tabId });
@@ -52,18 +66,68 @@ async function setVolume(tabId, volume) {
     }
     await sendAudioMessage({ type: "start", tabId, volume, streamId, muted: Boolean(tab.mutedInfo?.muted) });
   }
-  if (volume > 0 && tab.mutedInfo?.muted) await chrome.tabs.update(tabId, { muted: false });
+  if (!restoring && volume > 0 && tab.mutedInfo?.muted) await chrome.tabs.update(tabId, { muted: false });
   if (volume !== DEFAULT_VOLUME) {
     const currentTab = await chrome.tabs.get(tabId);
     await sendAudioMessage({ type: "mute", tabId, muted: Boolean(currentTab.mutedInfo?.muted) });
   }
+  if (!restoring && (await chrome.storage.local.get("rememberVolume")).rememberVolume === true) {
+    const key = volumeKey(tab);
+    if (key) {
+      if (volume === DEFAULT_VOLUME) await chrome.storage.local.remove(key);
+      else await chrome.storage.local.set({ [key]: volume });
+    }
+  }
   return { volume };
+}
+
+async function queueVolume(tabId, volume, restoring = false) {
+  const previous = volumeQueues.get(tabId) || Promise.resolve();
+  const queuedRequest = previous.catch(() => {}).then(() => setVolume(tabId, volume, restoring));
+  volumeQueues.set(tabId, queuedRequest);
+  try {
+    return await queuedRequest;
+  } finally {
+    if (volumeQueues.get(tabId) === queuedRequest) volumeQueues.delete(tabId);
+  }
 }
 
 async function handlePopupMessage(message) {
   if (message.type === "list") {
-    const [tabs, volumes] = await Promise.all([chrome.tabs.query({}), getVolumes()]);
-    return { tabs, volumes };
+    const [tabs, volumes, stored, active] = await Promise.all([
+      chrome.tabs.query({}), getVolumes(), chrome.storage.local.get(null),
+      chrome.tabs.query({ active: true, currentWindow: true })
+    ]);
+    const rememberVolume = stored.rememberVolume === true;
+    const savedVolumes = {};
+    const restoreErrors = {};
+    if (rememberVolume) {
+      for (const tab of tabs) {
+        const saved = stored[volumeKey(tab)];
+        if (Number.isFinite(saved) && saved >= 0 && saved <= MAX_VOLUME && saved !== DEFAULT_VOLUME) savedVolumes[tab.id] = saved;
+      }
+      const tab = active[0];
+      if (tab && !tab.discarded && volumes[tab.id] === undefined && savedVolumes[tab.id] !== undefined) {
+        try {
+          const result = await queueVolume(tab.id, savedVolumes[tab.id], true);
+          volumes[tab.id] = result.volume;
+        } catch (error) { restoreErrors[tab.id] = error.message; }
+      }
+    }
+    return { tabs, volumes, rememberVolume, savedVolumes, restoreErrors };
+  }
+  if (message.type === "settings") {
+    if (typeof message.rememberVolume !== "boolean") throw new Error("Invalid memory setting.");
+    const settings = { rememberVolume: message.rememberVolume };
+    if (message.rememberVolume) {
+      const [tabs, volumes] = await Promise.all([chrome.tabs.query({}), getVolumes()]);
+      for (const tab of tabs) {
+        const key = volumeKey(tab);
+        if (key && volumes[tab.id] !== undefined) settings[key] = volumes[tab.id];
+      }
+    }
+    await chrome.storage.local.set(settings);
+    return { rememberVolume: message.rememberVolume };
   }
   if (!Number.isInteger(message.tabId) || message.tabId < 0) throw new Error("Invalid tab.");
   if (message.type === "mute") {
@@ -74,14 +138,7 @@ async function handlePopupMessage(message) {
   if (message.type !== "volume" || !Number.isFinite(message.volume) || message.volume < 0 || message.volume > MAX_VOLUME) {
     throw new Error("Invalid volume.");
   }
-  const previous = volumeQueues.get(message.tabId) || Promise.resolve();
-  const queuedRequest = previous.catch(() => {}).then(() => setVolume(message.tabId, message.volume));
-  volumeQueues.set(message.tabId, queuedRequest);
-  try {
-    return await queuedRequest;
-  } finally {
-    if (volumeQueues.get(message.tabId) === queuedRequest) volumeQueues.delete(message.tabId);
-  }
+  return queueVolume(message.tabId, message.volume);
 }
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {

@@ -20,10 +20,26 @@
           </button>
         </div>
       </div>
-      <div class="list-heading"><span id="count">Your tabs</span><span>Volume</span></div>
+      <nav class="navigation" role="tablist" aria-label="Views">
+        <button id="volume-tab" type="button" role="tab" aria-selected="true" aria-controls="volume-panel">Tabs</button>
+        <button id="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="m9 3-.6 2.4-2.1 1.2L4 6l-3 5 1.8 1.8v2.4L1 17l3 5 2.3-.6 2.1 1.2L9 25h6l.6-2.4 2.1-1.2 2.3.6 3-5-1.8-1.8v-2.4L23 11l-3-5-2.3.6-2.1-1.2L15 3Z" transform="translate(2 0) scale(.83)"/><circle cx="12" cy="11.6" r="3"/></svg>
+          Settings
+        </button>
+      </nav>
     </header>
-    <main id="tabs" aria-label="Tabs playing audio" aria-busy="true"></main>
-    <p id="empty" class="empty" hidden>No tabs are playing audio.</p>
+    <section id="volume-panel" role="tabpanel" aria-labelledby="volume-tab">
+      <div class="list-heading"><span id="count">Your tabs</span><span>Volume</span></div>
+      <main id="tabs" aria-label="Tabs playing audio" aria-busy="true"></main>
+      <p id="empty" class="empty" hidden>No tabs are playing audio.</p>
+    </section>
+    <section id="settings-panel" role="tabpanel" aria-labelledby="settings-tab" hidden>
+      <label class="setting" for="remember-volume">
+        <span><span class="setting-title">Remember volume</span><span class="setting-description" id="memory-description">Keep volume settings after restarting the browser, matched by tab title and site.</span></span>
+        <input id="remember-volume" type="checkbox" role="switch" aria-label="Remember volume" aria-describedby="memory-description memory-note" disabled>
+      </label>
+      <p id="memory-note" class="settings-note">Open the extension on a tab to restore its saved volume. Settings are stored only in this browser.</p>
+    </section>
     <p id="error" class="error" role="alert" hidden></p>
     <template id="tab-template">
       <article class="tab">
@@ -39,7 +55,7 @@
           <button class="mute icon-button" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4-5 4H3v8h3l5 4Z"/><path class="sound-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-cross" d="m16 9 6 6m0-6-6 6"/></svg>
           </button>
-          <div class="slider-track"><input class="volume-slider" type="range" min="0" max="200" step="1" value="100"><span class="original-mark" aria-hidden="true"></span></div>
+          <div class="slider-track"><input class="volume-slider" type="range" min="0" max="200" step="1" value="100"><button class="original-mark" type="button" title="Reset to 100%" aria-label="Reset to 100%"></button></div>
           <span class="limit" aria-hidden="true">200</span>
         </div>
         <p class="tab-note" hidden></p>

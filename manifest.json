@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Tab Volume",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_chrome_version": "116",
   "description": "Volume controls for tabs playing audio. Adjust each tab from 0% to 200%.",
-  "permissions": ["tabs", "activeTab", "tabCapture", "offscreen"],
+  "permissions": ["tabs", "activeTab", "tabCapture", "offscreen", "storage"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "Tab volume",

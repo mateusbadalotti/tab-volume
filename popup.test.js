@@ -9,17 +9,23 @@ test("Custom-volume tabs stay listed while silent, muted and across popup openin
     mutedInfo: { muted: id === 2 }
   }));
   const volumes = { 0: 0, 1: 60, 2: 150 };
+  const savedVolumes = {};
+  const restoreErrors = {};
+  const messages = [];
+  let rememberVolume = false;
+  let settingsError = false;
   function element() {
     const children = new Map();
     return {
+      handlers: {},
       dataset: {}, style: { setProperty() {} }, max: 200,
       setAttribute(name, value) { this[name] = value; },
-      addEventListener() {},
+      addEventListener(type, handler) { this.handlers[type] = handler; },
       querySelector(selector) {
         if (!children.has(selector)) children.set(selector, element());
         return children.get(selector);
       },
-      querySelectorAll() { return [this.querySelector(".volume-slider"), this.querySelector(".volume-value")]; }
+      querySelectorAll() { return [this.querySelector(".volume-slider"), this.querySelector(".volume-value"), this.querySelector(".original-mark")]; }
     };
   }
   async function open() {
@@ -42,7 +48,19 @@ test("Custom-volume tabs stay listed while silent, muted and across popup openin
         return elements.get(id);
       } },
       chrome: {
-        runtime: { sendMessage: async () => ({ tabs, volumes }) },
+        runtime: { sendMessage: async message => {
+          messages.push(message);
+          if (message.type === "settings") {
+            if (settingsError) return { error: "Storage unavailable" };
+            rememberVolume = message.rememberVolume;
+          }
+          if (message.type === "volume") {
+            if (message.volume === 100) delete volumes[message.tabId];
+            else volumes[message.tabId] = message.volume;
+            delete savedVolumes[message.tabId];
+          }
+          return { tabs, volumes, savedVolumes, restoreErrors, rememberVolume };
+        } },
         tabs: { query: async () => [], onUpdated: event, onCreated: event, onRemoved: event, onActivated: event },
         tabCapture: { onStatusChanged: event }
       }
@@ -82,4 +100,47 @@ test("Custom-volume tabs stay listed while silent, muted and across popup openin
   assert.equal(rendered.length, 3);
   assert.equal(elements.get("count").textContent, "0 tabs");
   assert.equal(elements.get("empty").hidden, false);
+  savedVolumes[1] = 70;
+  await refresh();
+  assert.equal(rendered[0].hidden, false);
+  assert.equal(rendered[0].querySelector(".volume-value").textContent, "100%");
+  assert.match(rendered[0].querySelector(".tab-note").textContent, /Saved: 70%/);
+  restoreErrors[1] = "Open this tab, then click the extension.";
+  await refresh();
+  assert.equal(rendered[0].querySelector(".tab-note").dataset.error, "true");
+  delete restoreErrors[1];
+  volumes[1] = 70;
+  await refresh();
+  assert.equal(rendered[0].querySelector(".tab-note").hidden, true);
+  assert.equal(rendered[0].querySelector(".tab-note").dataset.error, "false");
+  elements.get("settings-tab").handlers.click();
+  assert.equal(elements.get("volume-panel").hidden, true);
+  assert.equal(elements.get("settings-panel").hidden, false);
+  assert.equal(elements.get("settings-tab")["aria-selected"], "true");
+  const toggle = elements.get("remember-volume");
+  toggle.checked = true;
+  await toggle.handlers.change();
+  assert.equal(rememberVolume, true);
+  assert.equal(toggle.disabled, false);
+  settingsError = true;
+  toggle.checked = false;
+  await toggle.handlers.change();
+  assert.equal(toggle.checked, true);
+  assert.equal(elements.get("error").textContent, "Storage unavailable");
+  assert.equal(elements.get("error").hidden, false);
+  elements.get("volume-tab").handlers.click();
+  assert.equal(elements.get("volume-panel").hidden, false);
+  assert.equal(elements.get("settings-panel").hidden, true);
+  volumes[1] = 150;
+  await refresh();
+  rendered[0].querySelector(".original-mark").handlers.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(messages.at(-1).type, "volume");
+  assert.equal(messages.at(-1).tabId, 1);
+  assert.equal(messages.at(-1).volume, 100);
+  assert.equal(rendered[0].querySelector(".volume-value").textContent, "100%");
+  assert.equal(rendered[0].hidden, true);
+  tabs[0].discarded = true;
+  await refresh();
+  assert.equal(rendered[0].querySelector(".original-mark").disabled, true);
 });

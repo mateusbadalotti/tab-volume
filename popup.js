@@ -2,9 +2,50 @@ const DEFAULT_VOLUME = 100;
 const rows = new Map();
 const pending = new Map();
 const list = document.getElementById("tabs");
+const memoryToggle = document.getElementById("remember-volume");
+const viewTabs = [document.getElementById("volume-tab"), document.getElementById("settings-tab")];
 let currentTabId;
 let refreshing;
 let refreshAgain = false;
+let savingSettings = false;
+
+function selectView(selected) {
+  for (const tab of viewTabs) {
+    const active = tab === selected;
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+  }
+  document.getElementById("volume-panel").hidden = selected !== viewTabs[0];
+  document.getElementById("settings-panel").hidden = selected !== viewTabs[1];
+}
+
+for (const tab of viewTabs) {
+  tab.addEventListener("click", () => selectView(tab));
+  tab.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const selected = event.key === "Home" ? viewTabs[0] : event.key === "End" ? viewTabs[1] : viewTabs.find(item => item !== tab);
+    selectView(selected);
+    selected.focus();
+  });
+}
+
+memoryToggle.addEventListener("change", async () => {
+  savingSettings = true;
+  memoryToggle.disabled = true;
+  try {
+    await sendBackgroundMessage({ type: "settings", rememberVolume: memoryToggle.checked });
+    await refresh();
+  } catch (error) {
+    memoryToggle.checked = !memoryToggle.checked;
+    const element = document.getElementById("error");
+    element.textContent = error.message;
+    element.hidden = false;
+  } finally {
+    savingSettings = false;
+    memoryToggle.disabled = false;
+  }
+});
 
 async function sendBackgroundMessage(message) {
   const response = await chrome.runtime.sendMessage({ ...message, target: "background" });
@@ -64,6 +105,7 @@ async function changeVolume(id, volume) {
       try {
         await sendBackgroundMessage({ type: "volume", tabId: id, volume: next });
         state.volume = next;
+        state.savedVolume = undefined;
         if (next > 0) state.tab.mutedInfo = { muted: false };
         note(state.row, "");
       } catch (error) {
@@ -89,6 +131,7 @@ function createRow(tab) {
   });
   row.querySelector(".volume-slider").addEventListener("input", event => void changeVolume(tab.id, Number(event.target.value)));
   row.querySelector(".volume-value").addEventListener("click", () => void changeVolume(tab.id, DEFAULT_VOLUME));
+  row.querySelector(".original-mark").addEventListener("click", () => void changeVolume(tab.id, DEFAULT_VOLUME));
   row.querySelector(".mute").addEventListener("click", async () => {
     const state = rows.get(tab.id);
     if (state.saving) return;
@@ -111,9 +154,9 @@ function createRow(tab) {
 function updateVisibility() {
   let visible = 0;
   let playing = 0;
-  for (const { row, volume } of rows.values()) {
+  for (const { row, volume, savedVolume } of rows.values()) {
     const audible = row.dataset.audible === "true";
-    row.hidden = !audible && row.dataset.muted !== "true" && volume === DEFAULT_VOLUME;
+    row.hidden = !audible && row.dataset.muted !== "true" && volume === DEFAULT_VOLUME && savedVolume === undefined;
     if (!row.hidden) visible++;
     if (audible) playing++;
   }
@@ -128,7 +171,11 @@ async function refresh() {
   if (refreshing) { refreshAgain = true; return; }
   refreshing = true;
   try {
-    const [{ tabs, volumes }, active] = await Promise.all([sendBackgroundMessage({ type: "list" }), chrome.tabs.query({ active: true, currentWindow: true })]);
+    const [{ tabs, volumes, rememberVolume, savedVolumes = {}, restoreErrors = {} }, active] = await Promise.all([sendBackgroundMessage({ type: "list" }), chrome.tabs.query({ active: true, currentWindow: true })]);
+    if (!savingSettings) {
+      memoryToggle.checked = rememberVolume === true;
+      memoryToggle.disabled = false;
+    }
     currentTabId = active[0]?.id;
     const ids = new Set(tabs.map(tab => tab.id));
     for (const [id, { row }] of rows) {
@@ -171,15 +218,20 @@ async function refresh() {
       }
       const disabled = !/^(https?|file):/.test(tab.url || "") || Boolean(tab.discarded);
       row.dataset.disabled = String(disabled);
-      row.querySelectorAll(".volume-slider, .volume-value").forEach(control => { control.disabled = disabled; });
+      row.querySelector(".original-mark").setAttribute("aria-label", `Reset volume for ${actionTitle} to 100%`);
+      row.querySelectorAll(".volume-slider, .volume-value, .original-mark").forEach(control => { control.disabled = disabled; });
       if (!state.saving) {
         state.volume = volumes[tab.id] ?? DEFAULT_VOLUME;
+        state.savedVolume = savedVolumes[tab.id];
         paint(row, tab, state.volume);
-        if (row.querySelector(".tab-note").dataset.error !== "true") {
+        if (restoreErrors[tab.id]) note(row, restoreErrors[tab.id], true);
+        else if (state.restoreError || row.querySelector(".tab-note").dataset.error !== "true") {
           let message = "";
           if (disabled) message = tab.discarded ? "Open this tab to load it." : "Volume unavailable on this page.";
+          else if (state.savedVolume !== undefined && volumes[tab.id] === undefined) message = `Saved: ${state.savedVolume}%. Open this tab, then click the extension to restore.`;
           note(row, message);
         }
+        state.restoreError = Boolean(restoreErrors[tab.id]);
       }
     }
     document.getElementById("error").hidden = true;

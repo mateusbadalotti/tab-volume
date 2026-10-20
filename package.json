@@ -1,6 +1,6 @@
 {
   "name": "tab-volume",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "scripts": {
     "check": "node --check background.js && node --check offscreen.js && node --check popup.js && node --check theme.js",
